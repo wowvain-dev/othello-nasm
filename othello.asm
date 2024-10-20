@@ -5,12 +5,17 @@
 section .bss
 	board 			resb 64 
 	input_buffer 	resb 2
-	current_move 	resb 1
 
 	white_score 	resb 1
 	black_score 	resb 1
 
 section .data
+	current_move 	db 2
+	opponent_move   db 1
+	directions 		db -1, 0,  1, 0,  0, -1,  0, 1,  -1, -1,   -1, 1,      1, -1,        1, 1 	 
+	;					Left,  Right, Up,     Down,  Top-Left, Top-Right   Bottom-left   Bottom-right
+
+	coords 			db "%d %d", 0
 	walls 			db "|         |         |         |         |         |         |         |         |", 0 	
 	row_separator	db "+---------+---------+---------+---------+---------+---------+---------+---------+", 0
 	black_piece 	db '@', 0
@@ -38,7 +43,9 @@ section .data
 
 	input 			db "Enter your move (ex: a3, ONLY LOWERCASE, ESC to cancel): __", 0
 	input_end 		db 0 ; used to get input string length
-	bad_move_input	db "Bad Move Input, X coord = (a-h); y coord = (0-7). Enter to confirm", 0
+	bad_move_input	db "BAD_MOVE: Input, X coord = (a-h); y coord = (0-7). Enter to input again", 0
+	already_placed  db "BAD_MOVE: There is already a placed piece at your coords. Enter to input again", 0
+	invalid_move  	db "BAD_MOVE: Coordinates are correct, but they don't respect the game's rules. Check <HELP>. Enter to input again.", 0
 		
 
 section .text
@@ -160,7 +167,7 @@ draw_board:
 	mov rdi, 38
 	mov rsi, 2
 	mov rdx, player
-	cmp byte [current_move], 0
+	cmp byte [current_move], 2
 	je draw_board.black_move
 	cmp byte [current_move], 1
 	je draw_board.white_move
@@ -355,8 +362,8 @@ draw_menu:
 		cmp rcx, 64
 	jl draw_menu.score_loop
 
-	mov [white_score], r12
-	mov [black_score], r13
+	mov [white_score], r12b
+	mov [black_score], r13b
 	
 	mov rdi, 18
 	mov rsi, 92
@@ -466,6 +473,11 @@ get_input:
 	push rbp
 	mov rbp, rsp
 
+	push r12
+	push r13
+	push r14
+	push r15
+
 	.retry:
 	mov rdi, 39
 	mov rsi, 0
@@ -488,6 +500,10 @@ get_input:
 	cmp rax, 104
 	jg get_input.bad_input
 
+	; converting coord to number
+	sub rax, 97
+	mov r12, rax	
+
 	call getch
 	cmp rax, 27
 	je get_input.exit
@@ -495,6 +511,10 @@ get_input:
 	jl get_input.bad_input
 	cmp rax, 55
 	jg get_input.bad_input
+
+	; converting coord to number
+	sub rax, 48
+	mov r13, rax
 	
 	jmp get_input.good_input
 
@@ -508,8 +528,57 @@ get_input:
 		je get_input.retry
 	jmp get_input.bad_input
 
-	.good_input:
+	.already_placed:
+		mov rdi, 39
+		mov rsi, 2
+		mov rdx, already_placed
+		call mvprintw
+		call getch
+		cmp rax, 10
+		je get_input.retry
+	jmp get_input.already_placed
 
+	.invalid_move:
+		mov rdi, 39
+		mov rsi, 2
+		mov rdx, invalid_move
+		call mvprintw
+		call getch
+		cmp rax, 10
+		je get_input.retry
+	jmp get_input.invalid_move
+
+	.good_input:
+	xor r14, r14
+	movzx r14, byte [board+(r13*8 + r12)]
+	cmp r14, 0
+	jne get_input.already_placed
+
+	; at this point we are sure the input is valid
+	; from a coordinate or pre-placement perspective,
+	; now lets check if its a valid move
+
+	mov rdi, r12	
+	mov rsi, r13
+	call validate_move
+	cmp rax, 0
+	je get_input.invalid_move
+
+	mov r8b, byte [current_move]
+	cmp r8b, 2
+	je get_input.switch_to_white
+	cmp r8b, 1
+	je get_input.switch_to_black
+
+	.switch_to_white:
+		mov byte [current_move], 1
+		mov byte [opponent_move], 2
+	jmp get_input.exit
+
+	.switch_to_black:
+		mov byte [current_move], 2
+		mov byte [opponent_move], 1
+	jmp get_input.exit
 	
 	.exit:
 	mov rdi, 39
@@ -517,6 +586,131 @@ get_input:
 	call move
 	call clrtoeol
 
+	pop r15
+	pop r14
+	pop r13
+	pop r12
+
 	mov rsp, rbp
 	pop rbp
 ret
+
+; Input: col (rdi), row (rsi), direction_index (rdx)
+; Output: valid_move (rax), if valid move found, flips pieces along the way
+check_direction:
+	push rbp
+	mov rbp, rsp
+
+	push r12 
+	push r13
+	push r14
+	push r15
+
+	mov r15, 0 ; start with invalid assumption
+
+	; Load directions
+	movzx r12, byte [directions + rdx * 2]
+	movzx r13, byte [directions + (rdx * 2 + 1)]
+
+	mov r8, rsi ; current row
+	mov r9, rdi ; current col
+
+	.check_loop:
+		add r8, r13 ; next row in the given direction
+
+		add r9, r12 ; next col in the given direction
+		; checking if we reach the end of the board
+		cmp r8, 0
+		jl check_direction.end_check
+		cmp r8, 7
+		jg check_direction.end_check
+
+		cmp r9, 0
+		jl check_direction.end_check
+		cmp r9, 7
+		jg check_direction.end_check
+
+		movzx r14, byte [board + (r8*8 + r9)]
+
+		cmp r14b, byte [current_move]
+		je check_direction.flip_pieces
+
+		mov r10, 0
+		cmp r14b, 0
+		cmove r15, r10
+		je check_direction.end_check
+
+		mov r11, 1
+		cmp r14b, byte [opponent_move]
+		cmove r15, r11
+		je check_direction.check_loop
+
+		jmp check_direction.end_check
+
+	.flip_pieces:
+		sub r8, r13		
+		sub r9, r12
+
+		cmp r8, rsi
+		jne check_direction.flip
+		cmp r9, rdi
+		jne check_direction.flip
+		
+		xor r14, r14
+		movzx r14, byte [current_move]
+		mov [board + (r8*8 + r9)], r14b
+		jmp check_direction.end_check
+
+		.flip:
+		xor r14, r14
+		movzx r14, byte [current_move]
+		mov [board + (r8*8 + r9)], r14b
+
+	jmp check_direction.flip_pieces
+
+	.end_check:
+	mov rax, r15
+	pop r15
+	pop r14
+	pop r13
+	pop r12
+
+	mov rsp, rbp
+	pop rbp
+ret 
+
+; Input: col (rdi), row (rsi)
+; Output: valid_move (rax), if valid move found, flips pieces along the way
+validate_move:
+	push rbp
+	mov rbp, rsp
+
+	push r12
+	push r13
+	push r14
+	push r15
+
+	mov rdx, 0 ; the direction index
+	mov r15, 0 ; assume invalid move
+
+	.check_next_dir:
+		call check_direction
+
+		cmp rax, 1
+		cmove r15, rax
+
+		inc rdx
+		cmp rdx, 8
+	jl validate_move.check_next_dir
+	
+
+	mov rax, r15
+
+	pop r15
+	pop r14
+	pop r13
+	pop r12
+
+	mov rsp, rbp
+	pop rbp
+ret 
