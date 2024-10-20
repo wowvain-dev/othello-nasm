@@ -7,10 +7,10 @@ section .bss
 	input_buffer 	resb 2
 
 
-	white_score 	resb 1
-	black_score 	resb 1
 
 section .data
+	white_score 	db 0
+	black_score 	db 0
 	; the number of consecutive "forfeits" that took place. if we reach two, its game over since nobody is able to move
 	skips 			db 0
 
@@ -339,6 +339,8 @@ draw_menu:
 		
 	push r12
 	push r13
+	push r14
+	push r15
 
 	mov rdi, 7
 	mov rsi, 95
@@ -375,15 +377,15 @@ draw_menu:
 	mov rdx, score
 	call mvprintw
 
-	xor rcx, rcx
 	xor r12, r12
 	xor r13, r13
+	xor r14, r14
+	xor r15, r15
 	.score_loop:
-		xor rdi, rdi
-		movzx rdi, byte [board + rcx]		
-		cmp rdi, 1
+		movzx r14, byte [board + r15]		
+		cmp r14, 1
 		je draw_menu.white
-		cmp rdi, 2
+		cmp r14, 2
 		je draw_menu.black
 		jmp draw_menu.end
 		.white:
@@ -393,25 +395,39 @@ draw_menu:
 			add r13, 1
 			jmp draw_menu.end
 		.end:
-		add rcx, 1	
-		cmp rcx, 64
+		inc r15
+		cmp r15, 64
 	jl draw_menu.score_loop
 
-	mov [white_score], r12b
-	mov [black_score], r13b
+	mov byte [white_score], r12b
+	mov byte [black_score], r13b
 	
 	mov rdi, 18
 	mov rsi, 92
+	call move
+	call clrtoeol
+
+	mov rdi, 18
+	mov rsi, 92
 	mov rdx, w_count
-	mov rcx, r12
+	xor rcx, rcx
+	movzx rcx, r12b
 	call mvprintw
 
 	mov rdi, 19
 	mov rsi, 92
+	call move
+	call clrtoeol
+
+	mov rdi, 19
+	mov rsi, 92
 	mov rdx, b_count
-	mov rcx, r13
+	xor rcx, rcx
+	movzx rcx, r13b
 	call mvprintw
 
+	pop r15
+	pop r14
 	pop r13
 	pop r12
 
@@ -436,13 +452,18 @@ game_loop:
     	; Refresh the screen to show the board
     	call refresh
 
-		mov rax, 10
+		mov r8b, byte [white_score]
+		mov r9b, byte [black_score]
+
+		add r8b, r9b
+		cmp r8b, 64
+		jge game_loop.over
+
 		call valid_moves
 		cmp rax, 0
 		jne game_loop.keep_round
 
 		inc byte [skips]
-		
 		cmp byte [skips], 2,
 		jge game_loop.over
 
