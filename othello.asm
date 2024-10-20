@@ -12,7 +12,7 @@ section .bss
 section .data
 	current_move 	db 2
 	opponent_move   db 1
-	directions 		db -1, 0,  1, 0,  0, -1,  0, 1,  -1, -1,   -1, 1,      1, -1,        1, 1 	 
+	directions 		db -1, 0,  1, 0,  0, -1,  0, 1,  -1, -1,   1, -1,      -1, 1,         1, 1 	 
 	;					Left,  Right, Up,     Down,  Top-Left, Top-Right   Bottom-left   Bottom-right
 
 	coords 			db "%d %d", 0
@@ -141,7 +141,7 @@ draw_board:
 	call draw_separator
 
 	mov r14, 4
-	mov r13, 0
+	mov r13, 1
 	mov r12, 7
 	.loop_coords:
 		mov rdi, r14	
@@ -154,7 +154,7 @@ draw_board:
 		mov rdi, 1
 		mov rdx, char_format
 		mov r8, r13
-		add r8, 65
+		add r8, 64
 		mov rcx, r8
 		call mvprintw
 			
@@ -162,7 +162,7 @@ draw_board:
 		add r12, 10
 		add r14, 4
 		cmp r13, 8
-	jl draw_board.loop_coords
+	jle draw_board.loop_coords
 
 	mov rdi, 38
 	mov rsi, 2
@@ -507,13 +507,13 @@ get_input:
 	call getch
 	cmp rax, 27
 	je get_input.exit
-	cmp rax, 48
+	cmp rax, 49
 	jl get_input.bad_input
-	cmp rax, 55
+	cmp rax, 56
 	jg get_input.bad_input
 
 	; converting coord to number
-	sub rax, 48
+	sub rax, 49
 	mov r13, rax
 	
 	jmp get_input.good_input
@@ -564,6 +564,13 @@ get_input:
 	cmp rax, 0
 	je get_input.invalid_move
 
+	cmp rax, 1
+	jne get_input.switch_player
+
+	mov r14b, byte [current_move]	
+	mov byte[board + (rsi*8 + rdi)], r14b
+
+	.switch_player:
 	mov r8b, byte [current_move]
 	cmp r8b, 2
 	je get_input.switch_to_white
@@ -616,9 +623,23 @@ check_direction:
 	mov r9, rdi ; current col
 
 	.check_loop:
+		cmp r13, 0xff
+		je check_direction.neg_r13
 		add r8, r13 ; next row in the given direction
+		jmp check_direction.r12
 
+		.neg_r13:
+		sub r8, 1
+
+		.r12:
+		cmp r12, 0xff
+		je check_direction.neg_r12
 		add r9, r12 ; next col in the given direction
+		jmp check_direction.borders
+		.neg_r12:
+		sub r9, 1
+
+		.borders:
 		; checking if we reach the end of the board
 		cmp r8, 0
 		jl check_direction.end_check
@@ -648,17 +669,30 @@ check_direction:
 		jmp check_direction.end_check
 
 	.flip_pieces:
+		cmp r13, 0xff
+		je check_direction.neg_r13_2
 		sub r8, r13		
-		sub r9, r12
+		jmp check_direction.r12_2
+		.neg_r13_2:
+		add r8, 1
 
+		.r12_2:
+		cmp r12, 0xff
+		je check_direction.neg_r12_2
+		sub r9, r12
+		jmp check_direction.borders_2
+		.neg_r12_2:
+		add r9, 1
+
+		.borders_2:
 		cmp r8, rsi
 		jne check_direction.flip
 		cmp r9, rdi
 		jne check_direction.flip
 		
-		xor r14, r14
-		movzx r14, byte [current_move]
-		mov [board + (r8*8 + r9)], r14b
+		;xor r14, r14
+		;movzx r14, byte [current_move]
+		;mov [board + (r8*8 + r9)], r14b
 		jmp check_direction.end_check
 
 		.flip:
@@ -714,3 +748,25 @@ validate_move:
 	mov rsp, rbp
 	pop rbp
 ret 
+
+; Input: none
+; Output: valid_moves
+valid_moves:
+	push rbp
+	mov rbp, rsp
+
+	push r12
+	push r13
+	push r14
+	push r15
+
+
+
+	pop r15
+	pop r14
+	pop r13
+	pop r12
+
+	mov rsp, rbp
+	pop rbp
+ret
