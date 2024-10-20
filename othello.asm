@@ -27,31 +27,59 @@ section .data
 
 	int_format		db "%d", 0
 	char_format 	db "%c", 0		
+	string_format   db "%s", 0
 	title 			db "Othello", 0
 	nl 				db "\n", 0
 	score 			db "Score:", 0
 	b_count 		db "Black pieces: %d", 0
 	w_count 		db "White pieces: %d", 0
 	keybinds 		db "Keybinds:", 0 
-	f1_help 		db "F1 - Help", 0
-	f2_about 		db "F2 - About", 0
-	i_enter			db "I  - Enter Move", 0 
-	q_exit			db "Q  - Exit", 0
+	f1_help 		db "P - Help", 0
+	f2_about 		db "O - About", 0
+	i_enter			db "I - Enter Move", 0 
+	q_exit			db "Q - Exit", 0
 
 	player			db "CURRENT PLAYER: %s", 0
 	player_black 	db "BLACK(@)", 0
 	player_white 	db "WHITE(o)", 0
 
-	over			db "game over.", 0
+	over			db "   _______________________", 0
+	over2			db " /                         \", 0
+	over3			db "|         GAME OVER!        |", 0
+	over4			db " \ _______________________ /", 0
+	over_black		db "BLACK won", 0
+	over_white		db "WHITE won", 0
+	over_draw 		db "DRAW", 0
+	over_prompt     db "Press any key to finish the game.", 0
 
 	sure			db "Are you sure you want to exit? [y/n]"
 	sure_end        db 0 ; used to get sure string length
 
 	input 			db "Enter your move (ex: a3, ONLY LOWERCASE, ESC to cancel): __", 0
 	input_end 		db 0 ; used to get input string length
-	bad_move_input	db "BAD_MOVE: Input, X coord = (a-h); y coord = (0-7). Enter to input again", 0
+	bad_move_input	db "BAD_MOVE: Input, X coord = (a-h); y coord = (1-8). Enter to input again", 0
 	already_placed  db "BAD_MOVE: There is already a placed piece at your coords. Enter to input again", 0
 	invalid_move  	db "BAD_MOVE: Coordinates are correct, but they don't respect the game's rules. Check <HELP>. Enter to input again.", 0
+
+
+	help_title		db "HELP MENU", 0
+	about_title		db "ABOUT", 0
+
+	about_app  		db "This program has been developed for the CSE1400 Lab Game Assignment by Bogdan Stanciu. It uses ncurses as a backend for the terminal user interface and libc because ncurses requires it.", 0 
+	about_app_2 	db "It was been programmed using the NASM language.", 0
+	about_app_3 	db "Copyright (c) 2024 - Bogdan Stanciu (wowvain-dev)", 0
+	help_link 		db "For a more complete description of the game, I recommend https://www.worldothello.org/about/about-othello/othello-rules/official-rules/english", 0
+	help_info_1 	db "A move consists of placing a disc corresponding to your assigned color and flipping all the discs between the placed ones and the first disc that already has your color in any of the 8 directions (you cannot skip over blank cells).", 0
+	help_info_2 	db "1. Black always moves first", 0
+	help_info_3 	db "2. If on your turn you cannot flip at least one opposing disc, your turn is forfeited and your opponent moves again. If there is any move available, you are not allowed to skip your turn.", 0
+	help_info_4 	db "3. Players may not skip over their own color discs in order to outflank an opposing disc. (so you only flip the discs until the FIRST disc of your color in every direction)", 0
+	help_info_5		db "4. Discs may only be outflanked as a direct result of a move, so you don't recursively check for each disk you flipped if they also outflank other discs."
+	help_info_6 	db "5. All outflanked discs must be flipped, even if it could be in the player's disadvantage.", 0
+	help_info_7 	db "6. Once a disc is placed, it can never be moved, only flipped.", 0
+	help_info_8 	db "7. When neither player has a legal move left, the game ends.", 0
+	help_info_9 	db "NOTE: It is possible (and likely) for a game to end before all 64 squares are filled.", 0
+
+	menu_controls	db "Q - Go back to game", 0
 		
 
 section .text
@@ -65,6 +93,7 @@ section .text
 	extern mvprintw  
 	extern move
 	extern clrtoeol
+	extern clear
 
 main:
 	push rbp
@@ -428,6 +457,31 @@ game_loop:
     	; Wait for a key press
     	call getch
 
+		cmp rax, 80
+		jne game_loop.help
+		call help_menu
+		jmp game_loop.loop
+
+		.help:
+		cmp rax, 112
+		jne game_loop.help_skip
+		call help_menu
+		jmp game_loop.loop
+
+		.help_skip:
+
+		cmp rax, 79
+		jne game_loop.about
+		call about_menu
+		jmp game_loop.loop
+
+		.about:
+		cmp rax, 111
+		jne game_loop.skip_menu
+		call about_menu
+		jmp game_loop.loop
+
+		.skip_menu:
 		cmp rax, 73
 		je game_loop.input_move
 		cmp rax, 105
@@ -438,13 +492,45 @@ game_loop:
 		cmp rax, 113
 		je game_loop.ask_exit
 	jmp game_loop.loop	
-
 	.over:
-
 	mov rdi, 50
-	mov rsi, 2
+	mov rsi, 25
 	mov rdx, over
 	call mvprintw
+	mov rdi, 51
+	mov rsi, 25
+	mov rdx, over2
+	call mvprintw
+	mov rdi, 52
+	mov rsi, 25
+	mov rdx, over3
+	call mvprintw
+	mov rdi, 53
+	mov rsi, 25
+	mov rdx, over4
+	call mvprintw
+
+	xor r12, r12
+	xor r13, r13
+	mov r12b, byte [black_score]
+	mov r13b, byte [white_score]
+	mov r10, over_black
+	mov r11, over_white
+	mov r8, over_draw
+	mov rdi, 54
+	mov rsi, 35
+	cmp r12b, r13b
+	cmovl rdx, r11
+	cmovg rdx, r10
+	cmove rdx, r8
+	call mvprintw
+
+	mov rdi, 57
+	mov rsi, 25
+	mov rdx, over_prompt
+	call mvprintw
+
+	
 	call getch
 	jmp game_loop.exit
 
@@ -585,8 +671,7 @@ get_input:
 
 	; at this point we are sure the input is valid
 	; from a coordinate or pre-placement perspective,
-	; now lets check if its a valid move
-
+	; now lets check if is a valid move
 	mov rdi, r12	
 	mov rsi, r13
 	call validate_move
@@ -968,6 +1053,120 @@ switch_player:
 
 	mov byte [current_move], r11b
 	mov byte [opponent_move], r10b
+
+	mov rsp, rbp
+	pop rbp
+ret
+
+
+help_menu:
+	push rbp
+	mov rbp, rsp
+	
+	call clear
+
+	mov rdi, 2
+	mov rsi, 50
+	mov rdx, help_title
+	call mvprintw
+
+	mov rdi, 4
+	mov rsi, 2
+	mov rdx, help_link
+	call mvprintw
+
+	mov rdi, 7
+	mov rsi, 2
+	mov rdx, help_info_1
+	call mvprintw
+
+	mov rdi, 11
+	mov rsi, 4
+	mov rdx, help_info_2
+	call mvprintw
+
+	mov rdi, 13
+	mov rsi, 4
+	mov rdx, help_info_3
+	call mvprintw
+
+	mov rdi, 15
+	mov rsi, 4
+	mov rdx, help_info_4
+	call mvprintw
+
+	mov rdi, 17
+	mov rsi, 4
+	mov rdx, help_info_5
+	call mvprintw
+
+	mov rdi, 19
+	mov rsi, 4
+	mov rdx, help_info_6
+	call mvprintw
+
+	mov rdi, 21
+	mov rsi, 4
+	mov rdx, help_info_7
+	call mvprintw
+
+	mov rdi, 23
+	mov rsi, 4
+	mov rdx, help_info_8
+	call mvprintw
+
+	mov rdi, 25
+	mov rsi, 4
+	mov rdx, help_info_9
+	call mvprintw
+
+	mov rdi, 50
+	mov rsi, 25
+	mov rdx, menu_controls
+	call mvprintw
+
+	call getch
+
+	call clear
+
+	mov rsp, rbp
+	pop rbp
+ret
+
+about_menu:
+	push rbp
+	mov rbp, rsp
+
+	call clear
+
+	mov rdi, 2
+	mov rsi, 50
+	mov rdx, about_title
+	call mvprintw
+
+	mov rdi, 3
+	mov rsi, 35
+	mov rdx, about_app_3
+	call mvprintw
+
+	mov rdi, 8
+	mov rsi, 2
+	mov rdx, about_app
+	call mvprintw
+
+	mov rdi, 10
+	mov rsi, 2
+	mov rdx, about_app_2
+	call mvprintw
+
+	mov rdi, 50
+	mov rsi, 25
+	mov rdx, menu_controls
+	call mvprintw
+
+	call getch
+
+	call clear
 
 	mov rsp, rbp
 	pop rbp
