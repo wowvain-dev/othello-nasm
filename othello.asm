@@ -22,8 +22,8 @@ section .data
 	coords 			db "%d %d", 0
 	walls 			db "|         |         |         |         |         |         |         |         |", 0 	
 	row_separator	db "+---------+---------+---------+---------+---------+---------+---------+---------+", 0
-	black_piece 	db '@', 0
-	white_piece 	db 'o', 0
+	black_piece 	db 'X', 0
+	white_piece 	db 'O', 0
 
 	int_format		db "%d", 0
 	char_format 	db "%c", 0		
