@@ -6,10 +6,14 @@ section .bss
 	board 			resb 64 
 	input_buffer 	resb 2
 
+
 	white_score 	resb 1
 	black_score 	resb 1
 
 section .data
+	; the number of consecutive "forfeits" that took place. if we reach two, its game over since nobody is able to move
+	skips 			db 0
+
 	current_move 	db 2
 	opponent_move   db 1
 	directions 		db -1, 0,  1, 0,  0, -1,  0, 1,  -1, -1,   1, -1,      -1, 1,         1, 1 	 
@@ -37,6 +41,8 @@ section .data
 	player			db "CURRENT PLAYER: %s", 0
 	player_black 	db "BLACK(@)", 0
 	player_white 	db "WHITE(o)", 0
+
+	over			db "game over.", 0
 
 	sure			db "Are you sure you want to exit? [y/n]"
 	sure_end        db 0 ; used to get sure string length
@@ -401,6 +407,20 @@ game_loop:
     	; Refresh the screen to show the board
     	call refresh
 
+		mov rax, 10
+		call valid_moves
+		cmp rax, 0
+		jne game_loop.keep_round
+
+		inc byte [skips]
+		
+		cmp byte [skips], 2,
+		jge game_loop.over
+
+		call switch_player
+		jmp game_loop.loop
+
+		.keep_round:
 		mov rdi, 39
 		mov rsi, 2
 		call move
@@ -418,6 +438,15 @@ game_loop:
 		cmp rax, 113
 		je game_loop.ask_exit
 	jmp game_loop.loop	
+
+	.over:
+
+	mov rdi, 50
+	mov rsi, 2
+	mov rdx, over
+	call mvprintw
+	call getch
+	jmp game_loop.exit
 
 	.input_move:
 	call get_input
@@ -571,21 +600,7 @@ get_input:
 	mov byte[board + (rsi*8 + rdi)], r14b
 
 	.switch_player:
-	mov r8b, byte [current_move]
-	cmp r8b, 2
-	je get_input.switch_to_white
-	cmp r8b, 1
-	je get_input.switch_to_black
-
-	.switch_to_white:
-		mov byte [current_move], 1
-		mov byte [opponent_move], 2
-	jmp get_input.exit
-
-	.switch_to_black:
-		mov byte [current_move], 2
-		mov byte [opponent_move], 1
-	jmp get_input.exit
+	call switch_player
 	
 	.exit:
 	mov rdi, 39
@@ -749,8 +764,155 @@ validate_move:
 	pop rbp
 ret 
 
+validate_move_noflip:
+	push rbp
+	mov rbp, rsp
+
+	push r12
+	push r13
+	push r14
+	push r15
+
+	mov rdx, 0 ; the direction index
+	mov r15, 0 ; assume invalid move
+
+	.check_next_dir:
+		call check_direction_noflip
+
+		cmp rax, 1
+		cmove r15, rax
+		je validate_move_noflip.exit
+
+		inc rdx
+		cmp rdx, 8
+	jl validate_move_noflip.check_next_dir
+	
+	.exit:
+	mov rax, r15
+
+	pop r15
+	pop r14
+	pop r13
+	pop r12
+
+	mov rsp, rbp
+	pop rbp
+ret 
+
+; Input: col (rdi), row (rsi), direction_index (rdx)
+; Output: valid_move (rax), if valid move found, flips pieces along the way
+check_direction_noflip:
+	push rbp
+	mov rbp, rsp
+
+	push r12 
+	push r13
+	push r14
+	push r15
+
+	mov r15, 0 ; start with invalid assumption
+
+	; Load directions
+	movzx r12, byte [directions + rdx * 2]
+	movzx r13, byte [directions + (rdx * 2 + 1)]
+
+	mov r8, rsi ; current row
+	mov r9, rdi ; current col
+
+	.check_loop:
+		cmp r13, 0xff
+		je check_direction_noflip.neg_r13
+		add r8, r13 ; next row in the given direction
+		jmp check_direction_noflip.r12
+
+		.neg_r13:
+		sub r8, 1
+
+		.r12:
+		cmp r12, 0xff
+		je check_direction_noflip.neg_r12
+		add r9, r12 ; next col in the given direction
+		jmp check_direction_noflip.borders
+		.neg_r12:
+		sub r9, 1
+
+		.borders:
+		; checking if we reach the end of the board
+		cmp r8, 0
+		jl check_direction_noflip.end_check
+		cmp r8, 7
+		jg check_direction_noflip.end_check
+
+		cmp r9, 0
+		jl check_direction_noflip.end_check
+		cmp r9, 7
+		jg check_direction_noflip.end_check
+
+		movzx r14, byte [board + (r8*8 + r9)]
+
+		cmp r14b, byte [current_move]
+		je check_direction_noflip.end_check
+
+		mov r10, 0
+		cmp r14b, 0
+		cmove r15, r10
+		je check_direction_noflip.end_check
+
+		mov r11, 1
+		cmp r14b, byte [opponent_move]
+		cmove r15, r11
+		je check_direction_noflip.check_loop
+
+		jmp check_direction.end_check
+
+	; .flip_pieces:
+	; 	cmp r13, 0xff
+	; 	je check_direction.neg_r13_2
+	; 	sub r8, r13		
+	; 	jmp check_direction.r12_2
+	; 	.neg_r13_2:
+	; 	add r8, 1
+
+	; 	.r12_2:
+	; 	cmp r12, 0xff
+	; 	je check_direction.neg_r12_2
+	; 	sub r9, r12
+	; 	jmp check_direction.borders_2
+	; 	.neg_r12_2:
+	; 	add r9, 1
+
+	; 	.borders_2:
+	; 	cmp r8, rsi
+	; 	jne check_direction.flip
+	; 	cmp r9, rdi
+	; 	jne check_direction.flip
+		
+	; 	;xor r14, r14
+	; 	;movzx r14, byte [current_move]
+	; 	;mov [board + (r8*8 + r9)], r14b
+	; 	jmp check_direction.end_check
+
+	; 	.flip:
+	; 	xor r14, r14
+	; 	movzx r14, byte [current_move]
+	; 	mov [board + (r8*8 + r9)], r14b
+	;jmp check_direction.flip_pieces
+
+	.end_check:
+	mov rax, r15
+	pop r15
+	pop r14
+	pop r13
+	pop r12
+
+	mov rsp, rbp
+	pop rbp
+ret 
+
+
 ; Input: none
-; Output: valid_moves
+; Output: valid_moves (RAX): return whether the current 
+; player has any valid moves.
 valid_moves:
 	push rbp
 	mov rbp, rsp
@@ -760,12 +922,52 @@ valid_moves:
 	push r14
 	push r15
 
+	mov r15, 0	
 
+	mov r12, 0
+	.loop:
+		mov r13, 0
+		.loop_cols:
+			mov rsi, r12
+			mov rdi, r13
+			call validate_move_noflip
+
+			cmp rax, 1
+			cmove r15, rax
+			je valid_moves.exit
+			
+			inc r13
+			cmp r13, 8
+		jl valid_moves.loop_cols
+		inc r12
+		cmp r12, 8
+	jl valid_moves.loop
+
+	.exit:
 
 	pop r15
 	pop r14
 	pop r13
 	pop r12
+
+	mov rsp, rbp
+	pop rbp
+ret
+
+
+; swapts the values of current_move and opponent_move
+switch_player:
+	push rbp
+	mov rbp, rsp
+
+	xor r10, r10
+	xor r11, r11
+
+	mov r10b, byte [current_move]
+	mov r11b, byte [opponent_move]
+
+	mov byte [current_move], r11b
+	mov byte [opponent_move], r10b
 
 	mov rsp, rbp
 	pop rbp
