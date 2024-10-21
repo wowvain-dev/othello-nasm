@@ -22,8 +22,8 @@ section .data
 	coords 			db "%d %d", 0
 	walls 			db "|         |         |         |         |         |         |         |         |", 0 	
 	row_separator	db "+---------+---------+---------+---------+---------+---------+---------+---------+", 0
-	black_piece 	db 'X', 0
-	white_piece 	db 'O', 0
+	black_piece 	db "X", 0
+	white_piece 	db "O", 0
 
 	int_format		db "%d", 0
 	char_format 	db "%c", 0		
@@ -40,17 +40,17 @@ section .data
 	q_exit			db "Q - Exit", 0
 
 	player			db "CURRENT PLAYER: %s", 0
-	player_black 	db "BLACK(@)", 0
-	player_white 	db "WHITE(o)", 0
+	player_black 	db "BLACK(X)", 0
+	player_white 	db "WHITE(O)", 0
 
-	over			db "   _______________________", 0
-	over2			db " /                         \", 0
-	over3			db "|         GAME OVER!        |", 0
-	over4			db " \ _______________________ /", 0
+	over			db " _____________", 0
+	over2			db "/             \", 0
+	over3			db "|  GAME OVER! |", 0
+	over4			db "\_____________/", 0
 	over_black		db "BLACK won", 0
 	over_white		db "WHITE won", 0
 	over_draw 		db "DRAW", 0
-	over_prompt     db "Press any key to finish the game.", 0
+	over_prompt     db "Press any key.", 0
 
 	sure			db "Are you sure you want to exit? [y/n]"
 	sure_end        db 0 ; used to get sure string length
@@ -94,6 +94,8 @@ section .text
 	extern move
 	extern clrtoeol
 	extern clear
+	extern nonl
+	extern noecho
 
 main:
 	push rbp
@@ -199,13 +201,14 @@ draw_board:
 		cmp r13, 8
 	jle draw_board.loop_coords
 
-	mov rdi, 38
+	mov rdi, 35
 	mov rsi, 2
 	mov rdx, player
 	cmp byte [current_move], 2
 	je draw_board.black_move
 	cmp byte [current_move], 1
 	je draw_board.white_move
+
 	.black_move:
 		mov rcx, player_black
 		call mvprintw
@@ -342,38 +345,38 @@ draw_menu:
 	push r14
 	push r15
 
-	mov rdi, 7
-	mov rsi, 95
+	mov rdi, 3
+	mov rsi, 93
 	mov rdx, title
 	call mvprintw
 
-	mov rdi, 10 
-	mov rsi, 90
+	mov rdi, 6 
+	mov rsi, 88
 	mov rdx, keybinds
 	call mvprintw
 
-	mov rdi, 11
-	mov rsi, 92
+	mov rdi, 7
+	mov rsi, 90
 	mov rdx, i_enter
 	call mvprintw
 
-	mov rdi, 12
-	mov rsi, 92
+	mov rdi, 8
+	mov rsi, 90
 	mov rdx, f1_help
 	call mvprintw
 
-	mov rdi, 13
-	mov rsi, 92
+	mov rdi, 9
+	mov rsi, 90
 	mov rdx, f2_about
 	call mvprintw
 
-	mov rdi, 14
-	mov rsi, 92
+	mov rdi, 10
+	mov rsi, 90
 	mov rdx, q_exit
 	call mvprintw
 
-	mov rdi, 17
-	mov rsi, 90
+	mov rdi, 13
+	mov rsi, 88
 	mov rdx, score
 	call mvprintw
 
@@ -402,25 +405,25 @@ draw_menu:
 	mov byte [white_score], r12b
 	mov byte [black_score], r13b
 	
-	mov rdi, 18
-	mov rsi, 92
+	mov rdi, 14
+	mov rsi, 90
 	call move
 	call clrtoeol
 
-	mov rdi, 18
-	mov rsi, 92
+	mov rdi, 14
+	mov rsi, 90
 	mov rdx, w_count
 	xor rcx, rcx
 	movzx rcx, r12b
 	call mvprintw
 
-	mov rdi, 19
-	mov rsi, 92
+	mov rdi, 15
+	mov rsi, 90
 	call move
 	call clrtoeol
 
-	mov rdi, 19
-	mov rsi, 92
+	mov rdi, 15
+	mov rsi, 90
 	mov rdx, b_count
 	xor rcx, rcx
 	movzx rcx, r13b
@@ -471,7 +474,7 @@ game_loop:
 		jmp game_loop.loop
 
 		.keep_round:
-		mov rdi, 39
+		mov rdi, 36
 		mov rsi, 2
 		call move
 
@@ -514,20 +517,20 @@ game_loop:
 		je game_loop.ask_exit
 	jmp game_loop.loop	
 	.over:
-	mov rdi, 50
-	mov rsi, 25
+	mov rdi, 19
+	mov rsi, 87
 	mov rdx, over
 	call mvprintw
-	mov rdi, 51
-	mov rsi, 25
+	mov rdi, 20
+	mov rsi, 87
 	mov rdx, over2
 	call mvprintw
-	mov rdi, 52
-	mov rsi, 25
+	mov rdi, 21
+	mov rsi, 87
 	mov rdx, over3
 	call mvprintw
-	mov rdi, 53
-	mov rsi, 25
+	mov rdi, 22
+	mov rsi, 87
 	mov rdx, over4
 	call mvprintw
 
@@ -538,16 +541,16 @@ game_loop:
 	mov r10, over_black
 	mov r11, over_white
 	mov r8, over_draw
-	mov rdi, 54
-	mov rsi, 35
+	mov rdi, 23
+	mov rsi, 90
 	cmp r12b, r13b
 	cmovl rdx, r11
 	cmovg rdx, r10
 	cmove rdx, r8
 	call mvprintw
 
-	mov rdi, 57
-	mov rsi, 25
+	mov rdi, 25
+	mov rsi, 87
 	mov rdx, over_prompt
 	call mvprintw
 
@@ -560,13 +563,13 @@ game_loop:
 	jmp game_loop.loop
 
 	.ask_exit:
-	mov rdi, 40
+	mov rdi, 36
 	mov rsi, 2
 	mov rdx, sure
 	call mvprintw
 
 	.repeat_exit:
-	mov rdi, 40
+	mov rdi, 36
 	mov rsi, sure_end - sure
 	add rsi, 2
 	call move
@@ -582,7 +585,7 @@ game_loop:
 	cmp rax, 110
 	jne game_loop.lower_n
 
-		mov rdi, 40
+		mov rdi, 36
 		mov rsi, 0
 		call move
 		call clrtoeol
@@ -593,7 +596,7 @@ game_loop:
 	cmp rax, 78
 	jne game_loop.repeat_exit
 
-		mov rdi, 40
+		mov rdi, 36
 		mov rsi, 0
 		call move
 		call clrtoeol
@@ -615,16 +618,27 @@ get_input:
 	push r15
 
 	.retry:
-	mov rdi, 39
+	mov rdi, 36
 	mov rsi, 0
+	call move
 	call clrtoeol
 
-	mov rdi, 39
+	mov rdi, 37
+	mov rsi, 0
+	call move
+	call clrtoeol
+
+	mov rdi, 38
+	mov rsi, 0
+	call move
+	call clrtoeol
+
+	mov rdi, 36
 	mov rsi, 2
 	mov rdx, input
 	call mvprintw
 
-	mov rdi, 39
+	mov rdi, 36
 	mov rsi, input_end - input - 1
 	call move
 
@@ -655,7 +669,7 @@ get_input:
 	jmp get_input.good_input
 
 	.bad_input:
-		mov rdi, 39
+		mov rdi, 37
 		mov rsi, 2
 		mov rdx, bad_move_input
 		call mvprintw
@@ -665,7 +679,7 @@ get_input:
 	jmp get_input.bad_input
 
 	.already_placed:
-		mov rdi, 39
+		mov rdi, 37
 		mov rsi, 2
 		mov rdx, already_placed
 		call mvprintw
@@ -675,7 +689,7 @@ get_input:
 	jmp get_input.already_placed
 
 	.invalid_move:
-		mov rdi, 39
+		mov rdi, 37
 		mov rsi, 2
 		mov rdx, invalid_move
 		call mvprintw
@@ -709,7 +723,7 @@ get_input:
 	call switch_player
 	
 	.exit:
-	mov rdi, 39
+	mov rdi, 36
 	mov rsi, 0
 	call move
 	call clrtoeol
