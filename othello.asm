@@ -7,8 +7,16 @@ section .bss
 	input_buffer 	resb 2
 
 
-
 section .data
+	COLOR_BLACK		db 0
+	COLOR_RED		db 1
+	COLOR_GREEN		db 2
+	COLOR_YELLOW	db 3
+	COLOR_BLUE		db 4
+	COLOR_MAGENTA	db 5
+	COLOR_CYAN		db 6
+	COLOR_WHITE		db 7
+
 	white_score 	db 0
 	black_score 	db 0
 	; the number of consecutive "forfeits" that took place. if we reach two, its game over since nobody is able to move
@@ -97,6 +105,10 @@ section .text
 	extern nonl
 	extern noecho
 	extern start_color
+	extern COLOR_PAIR
+	extern attron
+	extern attroff
+	extern init_pair
 
 main:
 	push rbp
@@ -107,10 +119,40 @@ main:
 
 	call start_color
 
+	; general color setup
+	mov rdi, 1
+	movzx rsi, byte [COLOR_YELLOW]
+	movzx rdx, byte [COLOR_BLACK]
+	call init_pair
+
+	; color setup for black pieces
+	mov rdi, 2
+	movzx rsi, byte [COLOR_MAGENTA]
+	movzx rdx, byte [COLOR_BLACK]
+	call init_pair
+
+	; color setup for white pieces
+	mov rdi, 3
+	movzx rsi, byte [COLOR_BLUE]
+	movzx rdx, byte [COLOR_BLACK]
+	call init_pair
+
+	mov rdi, 4
+	movzx rsi, byte [COLOR_CYAN]
+	movzx rdx, byte [COLOR_BLACK]
+	call init_pair
+
+	mov rdi, 5
+	movzx rsi, byte [COLOR_CYAN]
+	movzx rdx, byte [COLOR_BLACK]
+	call init_pair
+
+
 	; Clearing the board buffer
 	call clear_board
 
 	call game_loop
+
 
     ; End NCurses mode
     call endwin
@@ -155,6 +197,11 @@ draw_board:
 		
 	mov r12, 2
 	mov r13, 2
+
+	mov rdi, 1
+	call COLOR_PAIR
+	mov rsi, rax
+	call attron
 	
 	.loop:
 		mov rdi, r12
@@ -212,6 +259,8 @@ draw_board:
 	cmp byte [current_move], 1
 	je draw_board.white_move
 
+
+
 	.black_move:
 		mov rcx, player_black
 		call mvprintw
@@ -222,6 +271,11 @@ draw_board:
 		jmp draw_board.go_pieces
 
 	.go_pieces:
+
+	mov rdi, 1
+	call COLOR_PAIR
+	mov rsi, rax
+	call attroff
 
 	call draw_pieces		
 
@@ -292,6 +346,7 @@ draw_cell:
 
 	push r12
 	push r13
+	
 
 	mov rax, rdi
 	shl rax, 3
@@ -310,11 +365,8 @@ draw_cell:
 	mul rsi	
 	mov rsi, rax
 
-
 	add rsi, 7
 	add rdi, 4
-
-
 
 	cmp r12, 1
 	je draw_cell.white
@@ -322,13 +374,56 @@ draw_cell:
 	cmp r12, 2
 	je draw_cell.black
 	.white:
+		push rdi
+		push rsi
+		push rdx
+		mov rdi, 3
+		call COLOR_PAIR
+		mov rsi, rax
+		call attron
+		pop rdx
+		pop rsi
+		pop rdi
 		mov rdx, white_piece	
+		call mvprintw
+		push rdi
+		push rsi
+		push rdx
+		mov rdi, 3
+		call COLOR_PAIR
+		mov rsi, rax
+		call attroff
+		pop rdx
+		pop rsi
+		pop rdi
+		
 		jmp draw_cell.print	
 	.black:
-		mov rdx, black_piece 	
+		push rdi
+		push rsi
+		push rdx
+		mov rdi, 2
+		call COLOR_PAIR
+		mov rsi, rax
+		call attron
+		pop rdx
+		pop rsi
+		pop rdi
+		mov rdx, black_piece	
+		call mvprintw
+		push rdi
+		push rsi
+		push rdx
+		mov rdi, 3
+		call COLOR_PAIR
+		mov rsi, rax
+		call attroff
+		pop rdx
+		pop rsi
+		pop rdi
+		call mvprintw
 		jmp draw_cell.print
 	.print:
-	call mvprintw
 	
 	.epilogue:
 	pop r13
@@ -347,6 +442,11 @@ draw_menu:
 	push r13
 	push r14
 	push r15
+
+	mov rdi, 4
+	call COLOR_PAIR
+	mov rsi, rax
+	call attron
 
 	mov rdi, 3
 	mov rsi, 93
@@ -431,6 +531,11 @@ draw_menu:
 	xor rcx, rcx
 	movzx rcx, r13b
 	call mvprintw
+
+	mov rdi, 4
+	call COLOR_PAIR
+	mov rsi, rax
+	call attroff
 
 	pop r15
 	pop r14
@@ -520,20 +625,26 @@ game_loop:
 		je game_loop.ask_exit
 	jmp game_loop.loop	
 	.over:
+
+	mov rdi, 5
+	call COLOR_PAIR
+	mov rsi, rax
+	call attron
+
 	mov rdi, 19
-	mov rsi, 87
+	mov rsi, 89
 	mov rdx, over
 	call mvprintw
 	mov rdi, 20
-	mov rsi, 87
+	mov rsi, 89
 	mov rdx, over2
 	call mvprintw
 	mov rdi, 21
-	mov rsi, 87
+	mov rsi, 89
 	mov rdx, over3
 	call mvprintw
 	mov rdi, 22
-	mov rsi, 87
+	mov rsi, 89
 	mov rdx, over4
 	call mvprintw
 
@@ -545,7 +656,7 @@ game_loop:
 	mov r11, over_white
 	mov r8, over_draw
 	mov rdi, 23
-	mov rsi, 90
+	mov rsi, 92
 	cmp r12b, r13b
 	cmovl rdx, r11
 	cmovg rdx, r10
@@ -553,10 +664,14 @@ game_loop:
 	call mvprintw
 
 	mov rdi, 25
-	mov rsi, 87
+	mov rsi, 89
 	mov rdx, over_prompt
 	call mvprintw
 
+	mov rdi, 5
+	call COLOR_PAIR
+	mov rsi, rax
+	call attroff
 	
 	call getch
 	jmp game_loop.exit
@@ -1158,7 +1273,7 @@ help_menu:
 	mov rdx, help_info_9
 	call mvprintw
 
-	mov rdi, 50
+	mov rdi, 35
 	mov rsi, 25
 	mov rdx, menu_controls
 	call mvprintw
@@ -1197,7 +1312,7 @@ about_menu:
 	mov rdx, about_app_2
 	call mvprintw
 
-	mov rdi, 50
+	mov rdi, 35
 	mov rsi, 25
 	mov rdx, menu_controls
 	call mvprintw
