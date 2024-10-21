@@ -1,8 +1,7 @@
 ASM = nasm
 LD = gcc
-ASFLAGS = -g -f elf64
-# LDFLAGS = -L/run/current-system/sw/lib -lncurses -lc
-LDFLAGS = -L. -lncurses
+ASFLAGS =  -g -f elf64
+LDFLAGS = -no-pie -L. -lncurses 
 
 TARGET = othello
 
