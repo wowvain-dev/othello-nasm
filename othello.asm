@@ -96,6 +96,7 @@ section .text
 	extern clear
 	extern nonl
 	extern noecho
+	extern start_color
 
 main:
 	push rbp
@@ -103,6 +104,8 @@ main:
 
 	; Initialize NCurses
     call initscr
+
+	call start_color
 
 	; Clearing the board buffer
 	call clear_board

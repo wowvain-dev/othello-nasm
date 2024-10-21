@@ -3,6 +3,8 @@
 #### Prerequisites
 -  Nix package manager or `ncurses` pre-installed
 -  Linux which supports ELF64 binary type
+-	 GCC installed
+-  NASM installed
 
 #### Running
 
